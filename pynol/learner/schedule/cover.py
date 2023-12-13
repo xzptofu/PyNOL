@@ -251,6 +251,10 @@ class PGC(PCover):
         self._active_state[to_reinit] = 2
         self._I_k_restart_marker[to_reinit] += self._interval_length[to_reinit]
 
+    @property 
+    def marker(self):
+        return self._marker
+    
 
 class PCGC(PGC):
     """PCGC stands for problem-dependent compact geometric cover

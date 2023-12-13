@@ -7,6 +7,7 @@ from pynol.environment.environment import Environment
 from pynol.learner.base import Base
 from pynol.learner.models.model import Model
 
+import time
 
 def online_learning(T, env: Environment, learner: Union[Base, Model]):
     """Combine the environment and learner, start the online learning process.
@@ -20,7 +21,8 @@ def online_learning(T, env: Environment, learner: Union[Base, Model]):
         tuple: tuple contains:
             x (numpy.ndarray): Decisions over :math:`T` rounds. \n
             loss (numpy.ndarray): Losses over :math:`T` rounds. \n
-            surrogate_loss (numpy.ndarray): Surrogate losses over :math:`T` rounds.
+            surrogate_loss (numpy.ndarray): Surrogate losses over :math:`T` rounds. \n
+            end_time (numpy.ndarray): Running time over :math:`T` rounds.
     """
     if hasattr(learner, 'domain'):
         dimension = learner.domain.dimension
@@ -28,9 +30,12 @@ def online_learning(T, env: Environment, learner: Union[Base, Model]):
         dimension = learner.schedule.bases[0].domain.dimension
     x = np.zeros((T, dimension))
     loss, surrogate_loss = np.zeros(T), np.zeros(T)
+    start_time = time.time()
+    running_time = np.zeros(T)
     for t in range(T):
         x[t], loss[t], surrogate_loss[t] = learner.opt(env[t])
-    return x, loss, surrogate_loss
+        running_time[t] = time.time() - start_time
+    return x, loss, surrogate_loss, running_time
 
 
 def multiple_online_learning(T, env: Environment, learners: list, processes=4):
@@ -46,7 +51,8 @@ def multiple_online_learning(T, env: Environment, learners: list, processes=4):
         tuple: tuple contains:
             x (numpy.ndarray): Decisions of all learners over :math:`T` rounds. \n
             loss (numpy.ndarray): Losses of all learners over :math:`T` rounds. \n
-            surrogate_loss (numpy.ndarray): Surrogate losses of all learners over :math:`T` rounds.
+            surrogate_loss (numpy.ndarray): Surrogate losses of all learners over :math:`T` rounds. \n
+            end_time (numpy.ndarray): Running time over :math:`T` rounds.
     """
     if hasattr(learners[0][0], 'domain'):
         dimension = learners[0][0].domain.dimension
@@ -56,6 +62,7 @@ def multiple_online_learning(T, env: Environment, learners: list, processes=4):
     x = np.zeros((num_learners, num_repeat, T, dimension))
     loss = np.zeros((num_learners, num_repeat, T))
     surrogate_loss = np.zeros_like(loss)
+    running_time = np.zeros((num_learners, num_repeat, T))
     p = Pool(processes=processes)
     results = []
     for i in range(num_learners):
@@ -66,5 +73,5 @@ def multiple_online_learning(T, env: Environment, learners: list, processes=4):
     p.close()
     p.join()
     for i, j, result in results:
-        x[i][j], loss[i][j], surrogate_loss[i][j] = result.get()
-    return x, loss, surrogate_loss
+        x[i][j], loss[i][j], surrogate_loss[i][j], running_time[i][j] = result.get()
+    return x, loss, surrogate_loss, running_time

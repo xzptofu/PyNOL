@@ -681,3 +681,69 @@ class AFLHMeta(Meta):
         re_init_idx = np.where(self._active_state == 2)[0]
         self._prob[re_init_idx] = 1 / (self.t + 1)
         self.prob /= np.sum(self.prob)
+
+
+
+class AdaptMLProd(Meta):
+
+    def __init__(self, N: int):
+        super().__init__(np.ones(N), None)
+        self._w = np.ones(N)
+        self._cum_squared_reg = np.zeros(N)
+        self._scale_factor = np.ones(N) * np.log(N) # gamma
+        self._learning_rate = np.ones(N) * 0.5
+
+    def opt_by_gradient(self, loss_bases, loss_meta, scale_factor: float = None):
+        self.cum_squared_reg += (loss_meta - loss_bases)**2
+        if scale_factor:
+            self.scale_factor = scale_factor 
+        old_learning_rate = self.learning_rate
+        new_learning_rate = np.minimum(0.5, np.sqrt(self.scale_factor / (1 + self.cum_squared_reg))) 
+        self.learning_rate = new_learning_rate 
+        self.w = (self.w * (1 + old_learning_rate * (loss_meta - loss_bases)))**(new_learning_rate/old_learning_rate)
+        self.prob = self.w * self.learning_rate / np.dot(self.w, self.learning_rate)
+        self.t += 1
+
+    @Meta.active_state.setter
+    def active_state(self, active_state):
+        super(AdaptMLProd, AdaptMLProd).active_state.__set__(self, active_state)
+        re_init_idx = np.where(self._active_state == 2)[0]
+        self._w[re_init_idx] = 1
+        self._cum_squared_reg[re_init_idx] = 0
+        self._learning_rate[re_init_idx] = np.minimum(0.5, np.sqrt(self._scale_factor[re_init_idx])) 
+        self._prob[re_init_idx] = self._w[re_init_idx] * self._learning_rate[re_init_idx]
+        self.prob = self.prob / np.sum(self.prob)
+
+    @property
+    def w(self):
+        return self._w[self._active_index]
+
+    @w.setter
+    def w(self, w):
+        self._w[self._active_index] = w
+
+    @property
+    def cum_squared_reg(self):
+        """Get the cumulative loss of the alive base-learners."""
+        return self._cum_squared_reg[self._active_index]
+
+    @cum_squared_reg.setter
+    def cum_squared_reg(self, cum_squared_reg: np.ndarray):
+        self._cum_squared_reg[self._active_index] = cum_squared_reg
+
+    @property
+    def scale_factor(self):
+        return self._scale_factor[self._active_index]
+
+    @scale_factor.setter
+    def scale_factor(self, scale_factor):
+        self._scale_factor[self._active_index] = scale_factor
+
+    @property
+    def learning_rate(self):
+        return self._learning_rate[self._active_index]
+
+    @learning_rate.setter
+    def learning_rate(self, learning_rate):
+        self._learning_rate[self._active_index] = learning_rate
+    

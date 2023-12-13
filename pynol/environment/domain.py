@@ -3,6 +3,7 @@ from copy import deepcopy
 from typing import Optional, Union
 
 import numpy as np
+from scipy.optimize import NonlinearConstraint, minimize
 
 
 class Domain(ABC):
@@ -195,3 +196,67 @@ class Simplex(Domain):
             return np.array(y.value).squeeze()
         else:
             raise TypeError(f'{dist} is not defined.')
+
+
+
+class Ellipsoid(Domain):
+    """This class defines an ellipsoid as the feasible set.
+    --------------------------
+        description to be done
+    """
+
+    def __init__(self,
+                 dimension: int,
+                 E: np.ndarray,
+                 radius: float = 1.,
+                 center: np.ndarray = None):
+        super().__init__(dimension=dimension)
+        self.min_eig = E.min()
+        self.E = np.diag(E)
+        self.radius = radius
+        self.R = radius
+        D = 2 * radius
+        self.center = center if center is not None else np.zeros(dimension)
+        #self.constrain = NonlinearConstraint(lambda x: x.T @ self.E @ x, 0 , self.min_eig * (D / 2)**2)
+
+    def init_x(self, prior: Optional[Union[str, np.ndarray]],
+               seed: Optional[int]) -> np.ndarray:
+        """Initialize a decision in the domain.
+
+        Args:
+            prior (numpy.ndarray, optional): Prior information to initialize
+                the decision. If a ``numpy.ndarray`` is given, the method will
+                return ``prior`` as the decision, otherwise return a random vector
+                in the Ball.
+            seed (int, optional): Random seed to initial the decision if `prior=None`.
+
+        Returns:
+            numpy.ndarray: a decision in the ball.
+        """
+        if prior is not None:
+            assert len(prior) == self.dimension
+            return np.array(prior)
+        else:
+            np.random.seed(seed)
+            random_direction = np.random.normal(size=self.dimension)
+            random_direction /= np.linalg.norm(random_direction)
+            random_radius = np.random.random()
+            return self.project(self.radius * random_direction * random_radius)
+
+
+    def project(self, x: np.ndarray) -> np.ndarray:
+        """Project the decision :math:`x` back to the ellipsoid by Euclid distance.
+
+        Args:
+            x(numpy.ndarray): the vector to be projected.
+
+        Returns:
+            numpy.ndarray: the projected vector.
+        """
+        assert len(x) == self.dimension
+        distance_func = lambda y: np.linalg.norm(x - y)
+        constrain = NonlinearConstraint(lambda x: x.T @ self.E @ x, lb=0, ub=self.min_eig * self.R**2)
+        res = minimize(distance_func, constraints = constrain, x0 = self.center)
+        return res.x
+
+
