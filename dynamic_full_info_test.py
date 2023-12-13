@@ -11,7 +11,7 @@ from pynol.utils.data_generator import LinearRegressionGenerator
 from pynol.utils.plot import plot
 import numpy as np
 
-T, dimension, stage, R, Gamma, scale, seed = 10000, 3, 100, 1, 1, 1 / 2, 0
+T, dimension, stage, R, Gamma, scale, seed = 1000, 3, 100, 1, 1, 1 / 2, 0
 feature, label = LinearRegressionGenerator().generate_data(
     T, dimension, stage, R, Gamma, seed=seed)
 D, r = 2 * R, R
@@ -79,4 +79,4 @@ if __name__ == "__main__":
     if os.path.exists('./results') is False:
         os.makedirs('./results')
     plot(loss, labels, file_path='./results/dynamic_full_info_test.pdf')
-    plot(end_time, labels, file_path='./results/dynamic_full_info_test_time.pdf')
+    plot(end_time / 1000, labels, file_path='./results/dynamic_full_info_test_time.pdf', y_label='Running time')

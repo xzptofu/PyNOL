@@ -80,3 +80,40 @@ class InnerSurrogateBase(SurrogateBase):
                 surrogate_grad (numpy.ndarray): Surrogate gradient for base-learners.
         """
         return lambda x: np.dot(x, variables['grad']), variables['grad']
+
+
+class Surrogate4RPCBase(SurrogateBase):
+    """The class defines the surrogate loss function for reducing the projection complexity."""
+
+    def __init__(self, scale_factor : float = 1):
+        self.scale_factor = scale_factor
+
+    def compute_surrogate_base(self, variables):
+        """Compute the surrogate loss functions and surrogate
+        gradient (if possible) for base-learners.
+
+        Replace original convex function :math:`f_t(x)` with
+
+        .. math::
+
+            f'_t(y)= \\langle f_t(x_t),y \\rangle 
+                - \\mathbb{1}_{\\{\langle f_t(x_t), v_t \\rangle<0\\} } \\cdot \\langle f_t(x_t), v_t \\rangle \\cdot S_{\mathcal{X}}(y),
+
+        Args:
+            variables (dict): intermediate variables of the learning process at
+                current round.
+
+        Returns:
+            tuple: tuple contains:
+                surrogate_func (Callable): Surrogate function for base-learners. \n
+                surrogate_grad (numpy.ndarray): Surrogate gradient for base-learners.
+        """
+        if (variables['y'] != variables['x']).any():
+            v_t = (variables['y'] - variables['x'])/np.linalg.norm((variables['y'] - variables['x']))
+        else:
+            v_t = np.zeros(variables['domain'].dimension)
+        if np.dot(variables['grad'], v_t) >= 0 :
+            grad = variables['grad']
+        else:
+            grad = variables['grad'] - np.dot(variables['grad'], v_t) * v_t
+        return lambda y: np.dot(grad, y) / self.scale_factor  , grad / self.scale_factor
