@@ -152,3 +152,71 @@ class Model:
         if self.optimism_meta is not None and self.optimism_meta.is_external is False:
             self.internal_optimism_meta = self.optimism_meta.compute_optimism_meta(
                 variables)
+
+
+class Efficient_Model(Model):
+    """Efficient model class that reduces the number of projections per round 
+    from :math:`\mathcal{O}(\log T)` to :math:`1`.
+    
+    """
+
+    def meta_opt_by_gradient(self, surrogate_loss):
+        self.meta.opt_by_gradient(self.loss_bases, surrogate_loss)
+
+    def schedule_opt_by_gradient(self, base_env, loss):
+        return self.schedule.opt_by_gradient(base_env)
+    
+    def opt_by_gradient(self, env: Environment):
+        """Optimize by the true gradient.
+
+        Args:
+            env (Environment): Environment at the current round.
+
+        Returns:
+            tuple: tuple contains:
+                x (numpy.ndarray): the decision at the current round. \n
+                loss (float): the origin loss at the current round. \n
+                surrogate_loss (float): the surrogate loss at the current round.
+        """
+        self.env = env
+        variables = vars(self)
+        self.x_bases = self.schedule.x_active_bases
+        self.y = np.dot(self.meta.prob, self.x_bases)
+        # the only projection at each round
+        self.x = self.domain.project(self.y)
+
+        if env.full_info:
+            loss, surrogate_loss = env.get_loss(self.x)
+            self.grad = env.get_grad(self.x)
+        else:
+            self.perturbation.perturb_x(self.x)
+            loss, surrogate_loss = self.perturbation.compute_loss(env)
+            self.grad = self.perturbation.construct_grad()
+
+        # construct surrogate loss of environment
+        surrogate_func, surrogate_grad = self.surrogate_base.compute_surrogate_base(variables)
+
+        # update bases
+        base_env = Environment(func=surrogate_func, grad_func=surrogate_grad)
+        if self.surrogate_base is not None:
+            base_env.surrogate_func, base_env.surrogate_grad = self.surrogate_base.compute_surrogate_base(
+                variables)
+
+        self.loss_bases, self.surrogate_loss_bases = self.schedule_opt_by_gradient(
+            base_env, loss)
+
+        # compute surrogate loss of meta 
+        if self.surrogate_meta is not None:
+            self.loss_bases = self.surrogate_meta.compute_surrogate_meta(
+                variables)
+
+        # update meta
+        surrogate_loss = surrogate_func(self.y)
+        self.meta_opt_by_gradient(surrogate_loss)
+
+        # compute internal optimism of bases
+        self.compute_internal_optimism(variables)
+
+        self.t += 1
+        return self.x, loss, surrogate_loss
+    

@@ -32,11 +32,11 @@ def online_learning(T, env: Environment, learner: Union[Base, Model]):
     x = np.zeros((T, dimension))
     loss, surrogate_loss = np.zeros(T), np.zeros(T)
     start_time = time.time()
-    end_time = np.zeros(T)
+    running_time = np.zeros(T)
     for t in range(T):
         x[t], loss[t], surrogate_loss[t] = learner.opt(env[t])
-        end_time[t] = time.time() - start_time
-    return x, loss, surrogate_loss, end_time
+        running_time[t] = time.time() - start_time
+    return x, loss, surrogate_loss, running_time
 
 
 def multiple_online_learning(T, env: Environment, learners: list, processes=4):
@@ -63,7 +63,7 @@ def multiple_online_learning(T, env: Environment, learners: list, processes=4):
     x = np.zeros((num_learners, num_repeat, T, dimension))
     loss = np.zeros((num_learners, num_repeat, T))
     surrogate_loss = np.zeros_like(loss)
-    end_time = np.zeros((num_learners, num_repeat, T))
+    running_time = np.zeros((num_learners, num_repeat, T))
     p = Pool(processes=processes)
     results = []
     for i in range(num_learners):
@@ -74,5 +74,5 @@ def multiple_online_learning(T, env: Environment, learners: list, processes=4):
     p.close()
     p.join()
     for i, j, result in results:
-        x[i][j], loss[i][j], surrogate_loss[i][j], end_time[i][j] = result.get()
-    return x, loss, surrogate_loss, end_time
+        x[i][j], loss[i][j], surrogate_loss[i][j], running_time[i][j] = result.get()
+    return x, loss, surrogate_loss, running_time

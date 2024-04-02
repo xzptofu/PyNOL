@@ -108,7 +108,8 @@ class Surrogate4RPCBase(SurrogateBase):
                 surrogate_func (Callable): Surrogate function for base-learners. \n
                 surrogate_grad (numpy.ndarray): Surrogate gradient for base-learners.
         """
-        if (variables['y'] != variables['x']).any():
+        eps = 1e-8
+        if (abs(variables['y'] - variables['x']) > eps).any():
             v_t = (variables['y'] - variables['x'])/np.linalg.norm((variables['y'] - variables['x']))
         else:
             v_t = np.zeros(variables['domain'].dimension)

@@ -14,7 +14,7 @@ from pynol.utils.plot import plot
 
 import matplotlib.pyplot as plt
 
-T, dimension, stage, R, Gamma, scale, seed = 2000, 3, 100, 1, 1, 1 / 2, 0
+T, dimension, stage, R, Gamma, scale, seed = 200, 3, 100, 1, 1, 1 / 2, 0
 feature, label = LinearRegressionGenerator().generate_data(
     T, dimension, stage, R, Gamma, seed=seed)
 alive_time_threshold, loss_threshold = np.log2(T)**2, 1

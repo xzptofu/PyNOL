@@ -11,7 +11,7 @@ from pynol.utils.data_generator import LinearRegressionGenerator
 from pynol.utils.plot import plot
 import numpy as np
 
-T, dimension, stage, R, Gamma, scale, seed = 1000, 3, 100, 1, 1, 1 / 2, 0
+T, dimension, stage, R, Gamma, scale, seed = 2000, 3, 100, 1, 1, 1 / 2, 0
 feature, label = LinearRegressionGenerator().generate_data(
     T, dimension, stage, R, Gamma, seed=seed)
 D, r = 2 * R, R
@@ -69,8 +69,8 @@ sword = [
         seed=seed) for seed in seeds
 ]
 
-learners = [sword, ader1p ]
-labels = ['Sword', 'Ader_1p']
+learners = [ ader1p, sword ]
+labels = [ 'Ader_1p','Sword']
 
 if __name__ == "__main__":
     loss_func = SquareLoss(feature=feature, label=label, scale=scale)

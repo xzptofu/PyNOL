@@ -4,7 +4,7 @@ import numpy as np
 from pynol.environment.domain import Domain, Simplex, Ball
 from pynol.learner.base import OGD
 from pynol.learner.meta import Hedge
-from pynol.learner.models.model import Model
+from pynol.learner.models.model import Efficient_Model
 from pynol.learner.schedule.schedule import Schedule
 from pynol.learner.schedule.ssp import DiscreteSSP
 from pynol.learner.specification.surrogate_base import LinearSurrogateBase
@@ -15,12 +15,16 @@ from pynol.learner.specification.surrogate_base import Surrogate4RPCBase
 from pynol.environment.domain import Ball
 
 
-class Ader_1p(Model):
-    """Implementation of Adaptive Online Learning in Dynamic Environments with One Projection at each round.
+class Ader_1p(Efficient_Model):
+    """Implementation of Adaptive Online Learning in Dynamic Environments 
+    with One Projection at each round.
 
-    Ader is an online algorithm designed for optimizing dynamic regret for
-    general convex online functions, which is shown to enjoy
-    :math:`\mathcal{O}(\sqrt{T(1+P_T)})` dynamic regret.
+    ``Ader_1p`` is an improved version of ``Ader``, who reduces the gradient
+    query complexity of each round from :math:`\mathcal{O}(\log T)` to :math:`1`.
+    ``Ader_1p`` enjoys a dynamic regret bound of :math:`\mathcal{O}(\sqrt{T(1+P_T)})` 
+    and a small-loss dynamic regret bound of :math:`\mathcal{O}(\sqrt{(1 + P_T + F_T)(1 + P_T)})`,
+    where :math:`F_T =\sum_{t=1}^T f_t(u_t)` is the cumulative loss of the comparator
+    sequence.
 
     Args:
         domain (Domain): Feasible set for the algorithm.
@@ -38,7 +42,7 @@ class Ader_1p(Model):
             as `domain(prior=prior, see=seed)` for the algorithm.
 
     References:
-        
+        https://proceedings.neurips.cc/paper_files/paper/2022/file/4b70484ebef62484e0c8cdd269e482fd-Paper-Conference.pdf
     """
 
     def __init__(self,
@@ -78,56 +82,3 @@ class Ader_1p(Model):
             surrogate_base=surrogate_base,
             surrogate_meta=surrogate_meta)
         
-    def opt_by_gradient(self, env: Environment):
-        """Optimize by the true gradient.
-
-        Args:
-            env (Environment): Environment at the current round.
-
-        Returns:
-            tuple: tuple contains:
-                x (numpy.ndarray): the decision at the current round. \n
-                loss (float): the origin loss at the current round. \n
-                surrogate_loss (float): the surrogate loss at the current round.
-        """
-        self.env = env
-        variables = vars(self)
-        self.x_bases = self.schedule.x_active_bases
-        self.y = np.dot(self.meta.prob, self.x_bases)
-        # the only projection at each round
-        self.x = self.domain.project(self.y)
-
-        if env.full_info:
-            loss, surrogate_loss = env.get_loss(self.x)
-            self.grad = env.get_grad(self.x)
-        else:
-            self.perturbation.perturb_x(self.x)
-            loss, surrogate_loss = self.perturbation.compute_loss(env)
-            self.grad = self.perturbation.construct_grad()
-
-        # construct surrogate loss of environment
-        surrogate_func, surrogate_grad = self.surrogate_base.compute_surrogate_base(variables)
-
-        # update bases
-        base_env = Environment(func=surrogate_func, grad_func=surrogate_grad)
-        if self.surrogate_base is not None:
-            base_env.surrogate_func, base_env.surrogate_grad = self.surrogate_base.compute_surrogate_base(
-                variables)
-
-        self.loss_bases, self.surrogate_loss_bases = self.schedule.opt_by_gradient(
-            base_env)
-
-        # compute surrogate loss of meta #
-        if self.surrogate_meta is not None:
-            self.loss_bases = self.surrogate_meta.compute_surrogate_meta(
-                variables)
-
-        # update meta
-        surrogate_loss = surrogate_func(self.y)
-        self.meta.opt_by_gradient(self.loss_bases, surrogate_loss)
-
-        # compute internal optimism of bases
-        self.compute_internal_optimism(variables)
-
-        self.t += 1
-        return self.x, loss, surrogate_loss

@@ -200,8 +200,17 @@ class Simplex(Domain):
 
 class Ellipsoid(Domain):
     """This class defines an ellipsoid as the feasible set.
-    --------------------------
-        description to be done
+
+    Args:
+        dimension (int): Dimension of the feasible set.
+        E (numpy.ndarray): Relative length of the principal axes.
+        radius (float): Half the length of the longest principal axes.
+        center (numpy.ndarray, optional): Coordinates of the center point.
+        Default to the origin point if not specified.
+
+    .. math::
+
+       \mathbf{x}^\\top \mathbf{E} \mathbf{x} \leq \lambda_{\mathrm{min}}(\mathbf{E})\cdot R^2
     """
 
     def __init__(self,
@@ -211,12 +220,10 @@ class Ellipsoid(Domain):
                  center: np.ndarray = None):
         super().__init__(dimension=dimension)
         self.min_eig = E.min()
-        self.E = np.diag(E)
+        self.E = np.diag(E)        
         self.radius = radius
         self.R = radius
-        D = 2 * radius
         self.center = center if center is not None else np.zeros(dimension)
-        #self.constrain = NonlinearConstraint(lambda x: x.T @ self.E @ x, 0 , self.min_eig * (D / 2)**2)
 
     def init_x(self, prior: Optional[Union[str, np.ndarray]],
                seed: Optional[int]) -> np.ndarray:
@@ -254,8 +261,16 @@ class Ellipsoid(Domain):
         """
         assert len(x) == self.dimension
         distance_func = lambda y: np.linalg.norm(x - y)
-        constrain = NonlinearConstraint(lambda x: x.T @ self.E @ x, lb=0, ub=self.min_eig * self.R**2)
-        res = minimize(distance_func, constraints = constrain, x0 = self.center)
-        return res.x
+        constraint = NonlinearConstraint(lambda x: x.T @ self.E @ x, lb = 0, ub = self.min_eig * self.R**2, jac = lambda x: 2 * self.E @ x)
+        if 0 <= x.T @ self.E @ x and x.T @ self.E @ x <= self.min_eig * self.R**2: 
+            return x
+        res = minimize(distance_func, constraints = constraint, x0 = self.center, method = 'SLSQP')
+        if res.success:
+            return res.x
+        else:
+            distance = np.linalg.norm(x - self.center)
+            if distance > self.r:
+                x = self.center + (x - self.center) * self.min_eig / distance
+            return x
 
 

@@ -684,12 +684,40 @@ class AFLHMeta(Meta):
 
 
 class AdaptMLProd(Meta):
+    """Implementation of Prod with multiple adaptive learning rate.
 
-    def __init__(self, N: int):
+    ``AdaptMLProd`` is an adaptive version of ``Prod`` with multiple 
+    adaptive learning rate, which enjoys second-order regret bounds.
+    The update rule is as follows:
+
+    .. math::
+
+        
+        \\varepsilon_{t+1,i} = \min \left\{\\frac{1}{2}, \sqrt{\\frac{\gamma}{1 + \sum_{s = 1}^{t+1}(\widehat{\ell}_s - \ell_{s,i})^2}} \\right\} \n
+        w_{t+1,i} = \left(w_{t,i}(1 + \varepsilon_{t,i}(\widehat{\ell}_{t+1} - \ell_{t+1,i}))\\right)^{\\frac{\\varepsilon_{t+1,i}}{\\varepsilon_{t,i}}} \n
+        p_{t+1,i} = \\varepsilon_{t,i}  p_{t,i} / W_{t+1},
+
+    where :math:`\\varepsilon_t > 0` is the learning rate , :math:
+    `\widehat{\ell}_{t+1} = p_{t}^\\top\ell_{t+1}` is the weighted loss,
+    :math:`W_{t+1} = \\varepsilon_{t}^\\top w_{t}` is the normalization 
+    constant, :math:`\gamma` is the scale factor.
+
+    Args:
+        N (int): Number of the total base-learners.
+        w (numpy.ndarray): Initial weight over the base-learners.
+
+    References:
+        https://proceedings.mlr.press/v35/gaillard14.pdf
+    """
+    
+    def __init__(self, N: int, w: np.ndarray = None):
         super().__init__(np.ones(N), None)
-        self._w = np.ones(N)
+        if w:
+            self._w = w
+        else:
+            self._w = np.ones(N)
         self._cum_squared_reg = np.zeros(N)
-        self._scale_factor = np.ones(N) * np.log(N) # gamma
+        self._scale_factor = np.ones(N) * np.log(N) 
         self._learning_rate = np.ones(N) * 0.5
 
     def opt_by_gradient(self, loss_bases, loss_meta, scale_factor: float = None):
