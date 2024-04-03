@@ -255,7 +255,6 @@ class PGC(PCover):
     def marker(self):
         return self._marker
 
-
 class PCGC(PGC):
     """PCGC stands for problem-dependent compact geometric cover
     which removes some redundant intervals from problem-dependent geometric

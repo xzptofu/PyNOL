@@ -9,7 +9,6 @@ from pynol.learner.models.model import Model
 
 import time
 
-
 def online_learning(T, env: Environment, learner: Union[Base, Model]):
     """Combine the environment and learner, start the online learning process.
 
