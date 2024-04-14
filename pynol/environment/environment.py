@@ -112,3 +112,6 @@ class Environment:
         else:
             self.grad_func = grad_solver(self.func)
             return self.grad_func(x)
+
+    def get_func(self):
+        return self.func
