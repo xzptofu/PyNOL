@@ -44,16 +44,16 @@ class FTPLD(Model):
                  seed: Optional[int] = None):
         D = 2 * domain.R
         N = int(np.ceil(np.log2(T + 1)))
-        min_step_size = 1 / (domain.dimension * T)**0.5
-        max_step_size = 1 / domain.dimension**0.5
+        min_lmbd = 1 / (domain.dimension * T)**0.5
+        max_lmbd = 1 / domain.dimension**0.5
         ssp = DiscreteSSP(FTPL, 
-            min_step_size=min_step_size,
-            max_step_size=max_step_size,
+            min_step_size=min_lmbd,
+            max_step_size=max_lmbd,
             grid=2**0.5,
             domain=domain, 
             prior=prior, 
             seed=seed)
-        list.reverse(ssp.bases) # Reverse the bases list such that the 'step_size' is in descending order.
+        list.reverse(ssp.bases) # Reverse the bases list such that the 'lmbd' is in descending order.
         cover = DGC(N, alive_time_threshold)
         lr = np.array([1 / (domain.dimension * G * D * (T + 1)**0.5) for t in range(T)])
         meta = Hedge(prob=Simplex(len(ssp)).init_x(prior='uniform'), lr=lr)

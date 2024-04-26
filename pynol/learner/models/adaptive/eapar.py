@@ -21,6 +21,23 @@ class EAPAR(Efficient_Model):
     of each round and enjoys a small-loss adaptive regret bound of :math:'\mathcal{O}
     (\min\{\sqrt{F_I\log F_I\log F_T},\sqrt{|I|\log T}\})', where :math:`F_T =\sum_
     {t=1}^T f_t(u_t)` is the cumulative loss of the comparator sequence.
+
+     Args:
+        domain (Domain): Feasible set for the algorithm.
+        T (int): Total number of rounds.
+        G (float): Upper bound of gradient.
+        surrogate (bool): Whether to use surrogate loss.
+        loss_threshold (float, optional): A new interval is activated only when
+            the cumulative loss of the additional benchmark base-learner is larger
+            than the ``loss_threshold``.
+        prior (str, numpy.ndarray, optional): The initial decisions of all
+            base-learners are set as `domain(prior=prior, see=seed)` for the
+            algorithm.
+        seed (int, optional): The initial decisions of all base-learners are set
+            as `domain(prior=prior, see=seed)` for the algorithm.
+
+    References:
+        https://proceedings.neurips.cc/paper_files/paper/2022/file/4b70484ebef62484e0c8cdd269e482fd-Paper-Conference.pdf
     """
 
     def __init__(self,

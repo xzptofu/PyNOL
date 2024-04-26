@@ -775,36 +775,40 @@ class Hedge(OptimisticHedge):
 class FTPL(Base):
     """Implementation of Follow the Perturbed Leader.
 
-    ``FTPL`` stands for  `OGD` updates the decision :math:`x_{t+1}` by
+    ``FTPL`` stands for Follow the Perturbed Leader, which has
+    been prove to ensure regret bound for both convex and non-covnex 
+    functions. ``FTPL`` is an improved version of Follow the Leader,
+    and it updates the decision :math:`x_{t+1}` by
 
     .. math::
 
-        x_{t+1} = \Pi_{\mathcal{X}} [x_t - \eta_t \\nabla f_t(x_t)]
-
-    where :math:`\eta_t > 0` is the step size at round `t`, and
-    :math:`\Pi_{\mathcal{X}}[\cdot]` denotes the projection onto the nearest
-    point in :math:`\mathcal{X}`.
+        x_{t+1} = \\arg\min_{x \in \mathcal{X}} \sum_{i=1}^{t} [f_i(x)- <\sigma_t, x >]
+    where :math:`\sigma_t` is the perturbation at round `t`.
 
     Args:
         domain (Domain): Feasible set for the base algorithm.
-        step_size (float, numpy.ndarray): Step size :math:`\eta` for the
-            base algorithm. Valid types include ``float`` and ``numpy.ndarray``. If
-            the type of the step size :math:`\eta` is `float`, the algorithm will
-            use the fixed step size all the time, otherwise, the algorithm will use
-            the step size :math:`\eta_t` at round $t$.
+        lmbd (float, numpy.ndarray): Parameter of exponential distribution,
+            which is used to generate the random perturbation :math:`\sigma_t`
+            at each round. Valid types include ``float`` and ``numpy.ndarray``. 
+            If the type of the Lambda is `float`, the algorithm will use the 
+            fixed step size all the time, otherwise, the algorithm will use
+            the Lambda at round $t$.
         prior (str, numpy.ndarray, optional): The initial decision of the
             algorithm is set as ``domain.init_x(prior, seed)``.
         seed (int, optional): The initial decision of the algorithm is set as
             ``domain.init_x(prior, seed)``.
+
+    Reference:
+        https://proceedings.mlr.press/v117/suggala20a/suggala20a.pdf
     """
 
     def __init__(self,
                  domain: Domain,
-                 step_size: float,
+                 lmbd: float,
                  prior: Optional[Union[list, np.ndarray]] = None,
                  seed: Optional[int] = None):
         super().__init__(domain, None, prior, seed)
-        self.step_size = step_size 
+        self.lmbd = lmbd 
         self.history_func = lambda x : 0
         self.history_func_list = [lambda x : 0] 
 
@@ -818,7 +822,8 @@ class FTPL(Base):
             for i in range(len(self.history_func_list)):
                 func_val += self.history_func_list[i](x)
             return func_val
-        sigma = np.random.exponential(scale=self.step_size, size=(self.domain.dimension))
+        # generate random perturbation
+        sigma = np.random.exponential(scale=self.lmbd, size=(self.domain.dimension))
         def obj(x): 
             return new_history_func(x) - np.dot(sigma, x)
         
@@ -828,7 +833,7 @@ class FTPL(Base):
             constraint = NonlinearConstraint(distance_func, lb = 1e-100, ub = self.domain.r**2)
         res = minimize(obj, constraints = constraint, x0 = x, method = 'SLSQP')
 
-        # Update x if the optimization succeeded, or use the solution in last round.
+        # update x if the optimization succeeded, or use the solution in last round.
         if res.success:
             self.x = res.x
         else:
