@@ -75,11 +75,13 @@ class Ball(Domain):
             assert len(prior) == self.dimension
             return np.array(prior)
         else:
+            state = np.random.get_state()
             np.random.seed(seed)
             random_direction = np.random.normal(size=self.dimension)
             random_direction /= np.linalg.norm(random_direction)
             random_radius = np.random.random()
-            return self.radius * random_direction * random_radius
+            np.random.set_state(state)
+            return self.radius * random_direction * random_radius + self.center
 
     def unit_vec(self, seed: Optional[int] = None) -> np.ndarray:
         """Sample a unit vector uniformly at random.
