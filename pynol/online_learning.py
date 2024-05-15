@@ -1,4 +1,5 @@
-from multiprocessing import Pool
+#from multiprocessing import Pool
+from multiprocess import Pool
 from typing import Union
 import time
 import numpy as np
@@ -7,6 +8,7 @@ from pynol.environment.environment import Environment
 from pynol.learner.base import Base
 from pynol.learner.models.model import Model
 
+import time
 
 def online_learning(T, env: Environment, learner: Union[Base, Model]):
     """Combine the environment and learner, start the online learning process.

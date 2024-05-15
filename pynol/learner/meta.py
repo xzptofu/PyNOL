@@ -681,3 +681,96 @@ class AFLHMeta(Meta):
         re_init_idx = np.where(self._active_state == 2)[0]
         self._prob[re_init_idx] = 1 / (self.t + 1)
         self.prob /= np.sum(self.prob)
+
+
+class AdaptMLProd(Meta):
+    """Implementation of Prod with multiple adaptive learning rate.
+
+    ``AdaptMLProd`` is an adaptive version of ``Prod`` with multiple 
+    adaptive learning rate, which enjoys second-order regret bounds.
+    The update rule is as follows:
+
+    .. math::
+
+        
+        \\varepsilon_{t+1,i} = \min \left\{\\frac{1}{2}, \sqrt{\\frac{\gamma}{1 + \sum_{s = 1}^{t+1}(\widehat{\ell}_s - \ell_{s,i})^2}} \\right\} \n
+        w_{t+1,i} = \left(w_{t,i}(1 + \varepsilon_{t,i}(\widehat{\ell}_{t+1} - \ell_{t+1,i}))\\right)^{\\frac{\\varepsilon_{t+1,i}}{\\varepsilon_{t,i}}} \n
+        p_{t+1,i} = \\varepsilon_{t,i}  p_{t,i} / W_{t+1},
+
+    where :math:`\\varepsilon_t > 0` is the learning rate , :math:
+    `\widehat{\ell}_{t+1} = p_{t}^\\top\ell_{t+1}` is the weighted loss,
+    :math:`W_{t+1} = \\varepsilon_{t}^\\top w_{t}` is the normalization 
+    constant, :math:`\gamma` is the scale factor.
+
+    Args:
+        N (int): Number of the total base-learners.
+        w (numpy.ndarray): Initial weight over the base-learners.
+
+    References:
+        https://proceedings.mlr.press/v35/gaillard14.pdf
+    """
+    
+    def __init__(self, N: int, w: np.ndarray = None):
+        super().__init__(np.ones(N), None)
+        if w:
+            self._w = w
+        else:
+            self._w = np.ones(N)
+        self._cum_squared_reg = np.zeros(N)
+        self._scale_factor = np.ones(N) * np.log(N) 
+        self._learning_rate = np.ones(N) * 0.5
+
+    def opt_by_gradient(self, loss_bases, loss_meta, scale_factor: float = None):
+        self.cum_squared_reg += (loss_meta - loss_bases)**2
+        if scale_factor:
+            self.scale_factor = scale_factor 
+        old_learning_rate = self.learning_rate
+        new_learning_rate = np.minimum(0.5, np.sqrt(self.scale_factor / (1 + self.cum_squared_reg))) 
+        self.learning_rate = new_learning_rate 
+        self.w = (self.w * (1 + old_learning_rate * (loss_meta - loss_bases)))**(new_learning_rate/old_learning_rate)
+        self.prob = self.w * self.learning_rate / np.dot(self.w, self.learning_rate)
+        self.t += 1
+
+    @Meta.active_state.setter
+    def active_state(self, active_state):
+        super(AdaptMLProd, AdaptMLProd).active_state.__set__(self, active_state)
+        re_init_idx = np.where(self._active_state == 2)[0]
+        self._w[re_init_idx] = 1
+        self._cum_squared_reg[re_init_idx] = 0
+        self._learning_rate[re_init_idx] = np.minimum(0.5, np.sqrt(self._scale_factor[re_init_idx])) 
+        self._prob[re_init_idx] = self._w[re_init_idx] * self._learning_rate[re_init_idx]
+        self.prob = self.prob / np.sum(self.prob)
+
+    @property
+    def w(self):
+        return self._w[self._active_index]
+
+    @w.setter
+    def w(self, w):
+        self._w[self._active_index] = w
+
+    @property
+    def cum_squared_reg(self):
+        """Get the cumulative loss of the alive base-learners."""
+        return self._cum_squared_reg[self._active_index]
+
+    @cum_squared_reg.setter
+    def cum_squared_reg(self, cum_squared_reg: np.ndarray):
+        self._cum_squared_reg[self._active_index] = cum_squared_reg
+
+    @property
+    def scale_factor(self):
+        return self._scale_factor[self._active_index]
+
+    @scale_factor.setter
+    def scale_factor(self, scale_factor):
+        self._scale_factor[self._active_index] = scale_factor
+
+    @property
+    def learning_rate(self):
+        return self._learning_rate[self._active_index]
+
+    @learning_rate.setter
+    def learning_rate(self, learning_rate):
+        self._learning_rate[self._active_index] = learning_rate
+    

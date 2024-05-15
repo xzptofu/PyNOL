@@ -1,5 +1,5 @@
 from pynol.learner.base import (OEGD, OGD, SOGD, BGDOnePoint, BGDTwoPoint,
-                                Hedge, OptimisticHedge, OptimisticOGD)
+                                Hedge, OptimisticHedge, OptimisticOGD, FTPL)
 from pynol.learner.meta import (MSMWC, AdaNormalHedge, AFLHMeta, Hedge, Prod,
                                 OptimisticHedge, OptimisticLR)
 from pynol.learner import schedule

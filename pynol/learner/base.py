@@ -2,8 +2,9 @@ from abc import ABC, abstractmethod
 from typing import Optional, Union
 
 import numpy as np
-from pynol.environment.domain import Domain
+from pynol.environment.domain import Domain, Ball
 from pynol.environment.environment import Environment
+from scipy.optimize import NonlinearConstraint, LinearConstraint, minimize
 
 
 class Base(ABC):
@@ -769,3 +770,107 @@ class Hedge(OptimisticHedge):
                  seed: Optional[int] = None):
         super().__init__(domain, step_size, None, is_lazy, correct, prior,
                          seed)
+
+
+class FTPL(Base):
+    """Implementation of Follow the Perturbed Leader.
+
+    ``FTPL`` stands for Follow the Perturbed Leader, which has
+    been prove to ensure regret bound for both convex and non-covnex 
+    functions. ``FTPL`` is an improved version of Follow the Leader,
+    and it updates the decision :math:`x_{t+1}` by
+
+    .. math::
+
+        x_{t+1} = \\arg\min_{x \in \mathcal{X}} \sum_{i=1}^{t} [f_i(x)- <\sigma_t, x >]
+    where :math:`\sigma_t` is the perturbation at round `t`.
+
+    Args:
+        domain (Domain): Feasible set for the base algorithm.
+        step_size (float, numpy.ndarray): Parameter of exponential distribution,
+            which is used to generate the random perturbation :math:`\sigma_t`
+            at each round. Valid types include ``float`` and ``numpy.ndarray``. 
+            If the type of the Lambda is `float`, the algorithm will use the 
+            fixed step size all the time, otherwise, the algorithm will use
+            the Lambda at round $t$.
+        prior (str, numpy.ndarray, optional): The initial decision of the
+            algorithm is set as ``domain.init_x(prior, seed)``.
+        seed (int, optional): The initial decision of the algorithm is set as
+            ``domain.init_x(prior, seed)``.
+
+    Reference:
+        https://proceedings.mlr.press/v117/suggala20a/suggala20a.pdf
+    """
+
+    def __init__(self,
+                 domain: Domain,
+                 step_size: float,
+                 prior: Optional[Union[list, np.ndarray]] = None,
+                 seed: Optional[int] = None):
+        super().__init__(domain, None, prior, seed)
+        self.lmbd = step_size 
+        self.step_size = self.lmbd # for reinit
+        self.history_func = lambda x : 0
+        self.history_func_list = [lambda x : 0] 
+        self.history_grad_func_list = [lambda x : 0] 
+
+
+    
+    def opt_by_gradient(self, env: Environment):
+        from autograd import grad as grad_solver
+        x = self.x
+        loss, surrogate_loss = env.get_loss(x)
+        func = env.get_func()
+        grad_func = grad_solver(func)
+        self.history_func_list.append(func)
+        self.history_grad_func_list.append(grad_func)
+        def new_history_func(x):
+            func_val = 0
+            for i in range(len(self.history_func_list)):
+                func_val += self.history_func_list[i](x)
+            return func_val
+        def history_grad_func(x):
+            func_val = np.zeros_like(x)
+            for i in range(len(self.history_grad_func_list)):
+                func_val += self.history_grad_func_list[i](x)
+            return func_val / len(self.history_grad_func_list)
+        # generate random perturbation
+        sigma = np.random.exponential(scale=self.lmbd, size=(self.domain.dimension))
+        sigma = sigma * ((-1) ** np.random.randint(2))
+        def obj(x): # objective function to be minimized at each round
+            return new_history_func(x) + np.dot(sigma, x)
+        
+        # follow the perturbed leader by running multiple steps of stochastic gradient descent with momemtum
+        N = 20
+        eta = 0.01
+        alpha = 0.9
+        momt = np.zeros_like(x)
+        for step in range(N):
+            scale = 5
+            noise = (np.random.random(x.shape) - 0.5 ) * scale
+            grad = history_grad_func(x) + sigma + noise
+            momt = momt * alpha + grad * eta
+            x = x - momt
+            x = self.domain.project(x)
+        if obj(x) < obj(self.x): # if the new decision is better than the previous one
+            self.x = x
+            #print(x)
+            #print(self.lmbd)
+            #print(sigma)
+            #print('\n')
+
+        '''
+        # follow the perturbed leader by solving an offline optimization problem
+        if type(self.domain) == Ball:
+            distance_func = lambda x: np.dot(x - self.domain.center, x - self.domain.center)#np.linalg.norm(x - self.domain.center)
+            constraint = NonlinearConstraint(distance_func, lb = 1e-100, ub = self.domain.r**2)
+        res = minimize(obj, constraints = constraint, x0 = x, method = 'SLSQP')
+
+        # update x if the optimization succeeded, or use the solution in last round.
+        if res.success:
+            self.x = res.x
+        else:
+            print('optimize fail')
+
+        '''
+        return x, loss, surrogate_loss

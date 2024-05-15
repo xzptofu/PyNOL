@@ -1,21 +1,30 @@
 from typing import Optional, Union
 
 import numpy as np
-from pynol.environment.domain import Domain, Simplex
+from pynol.environment.domain import Domain, Simplex, Ball
 from pynol.learner.base import OGD
 from pynol.learner.meta import Hedge
-from pynol.learner.models.model import Model
+from pynol.learner.models.model import Efficient_Model
 from pynol.learner.schedule.schedule import Schedule
 from pynol.learner.schedule.ssp import DiscreteSSP
 from pynol.learner.specification.surrogate_base import LinearSurrogateBase
 from pynol.learner.specification.surrogate_meta import SurrogateMetaFromBase
+#-------------------------------------------------
+from pynol.environment.environment import Environment
+from pynol.learner.specification.surrogate_base import Surrogate4RPCBase
+from pynol.environment.domain import Ball
 
-class Ader(Model):
-    """Implementation of Adaptive Online Learning in Dynamic Environments.
 
-    Ader is an online algorithm designed for optimizing dynamic regret for
-    general convex online functions, which is shown to enjoy
-    :math:`\mathcal{O}(\sqrt{T(1+P_T)})` dynamic regret.
+class Ader_1p(Efficient_Model):
+    """Implementation of Adaptive Online Learning in Dynamic Environments 
+    with One Projection at each round.
+
+    ``Ader_1p`` is an improved version of ``Ader``, who reduces the gradient
+    query complexity of each round from :math:`\mathcal{O}(\log T)` to :math:`1`.
+    ``Ader_1p`` enjoys a dynamic regret bound of :math:`\mathcal{O}(\sqrt{T(1+P_T)})` 
+    and a small-loss dynamic regret bound of :math:`\mathcal{O}(\sqrt{(1 + P_T + F_T)(1 + P_T)})`,
+    where :math:`F_T =\sum_{t=1}^T f_t(u_t)` is the cumulative loss of the comparator
+    sequence.
 
     Args:
         domain (Domain): Feasible set for the algorithm.
@@ -33,7 +42,7 @@ class Ader(Model):
             as `domain(prior=prior, see=seed)` for the algorithm.
 
     References:
-        https://proceedings.neurips.cc/paper/2018/file/10a5ab2db37feedfdeaab192ead4ac0e-Paper.pdf
+        https://proceedings.neurips.cc/paper_files/paper/2022/file/4b70484ebef62484e0c8cdd269e482fd-Paper-Conference.pdf
     """
 
     def __init__(self,
@@ -55,16 +64,21 @@ class Ader(Model):
             min_step_size,
             max_step_size,
             grid=2,
-            domain=domain,
+            domain=Ball(dimension=domain.dimension, radius=domain.R), 
             prior=prior,
             seed=seed)
         schedule = Schedule(ssp)
+        # learning rate 
         lr = np.array([1 / (G * D * (t + 1)**0.5) for t in range(T)])
+        #N = np.log2(1 + 2 * T / 5)/2 + 1
+        #lr = np.array([(np.log(N) / (1 + (G*D)**2 * T))**0.5 for t in range(T)])
         meta = Hedge(prob=Simplex(len(ssp)).init_x(prior='nonuniform'), lr=lr)
-        surrogate_base = LinearSurrogateBase() if surrogate is True else None
+        surrogate_base = Surrogate4RPCBase() if surrogate is True else None
         surrogate_meta = SurrogateMetaFromBase() if surrogate is True else None
+        self.domain = domain
         super().__init__(
             schedule,
             meta,
             surrogate_base=surrogate_base,
             surrogate_meta=surrogate_meta)
+        

@@ -251,6 +251,9 @@ class PGC(PCover):
         self._active_state[to_reinit] = 2
         self._I_k_restart_marker[to_reinit] += self._interval_length[to_reinit]
 
+    @property 
+    def marker(self):
+        return self._marker
 
 class PCGC(PGC):
     """PCGC stands for problem-dependent compact geometric cover
@@ -276,3 +279,31 @@ class PCGC(PGC):
         to_inactive = ((self._I_k_restart_marker / self._interval_length) % 2
                        != 0)
         self._active_state[to_inactive] = 0
+
+
+class DGC(Cover):
+    """Dense geometric cover 
+
+    """
+
+    def __init__(self, N: int, alive_time_threshold: Optional[int] = None):
+        super().__init__(np.zeros(N), alive_time_threshold)
+        self._I_k_endtime = np.exp2(np.arange(N))
+        self._interval_length = np.exp2(np.arange(N))
+
+    @Cover.t.setter
+    def t(self, t):
+        self._t = t
+        # find active bases
+        self._active_state[np.where(self._I_k_endtime > 0)] = 1
+
+        # reinit bases
+        to_init_bases =  (self._I_k_endtime < self._t + 1)
+        self._active_state[to_init_bases] = 2
+
+        # update_stepsize[i] = 2^i if entry i needs to reinit or update_stepsize[i] = 0
+        update_stepsize = np.where(to_init_bases, self._interval_length, 0)
+        self._I_k_endtime[to_init_bases] += update_stepsize[to_init_bases]
+
+        if self._alive_time_threshold is not None:
+            self.check_threshold()

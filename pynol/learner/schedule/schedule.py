@@ -184,3 +184,30 @@ class PSchedule(Schedule):
         reinit_idx = np.where(self.active_state == 2)[0]
         for idx in reinit_idx:
             self.bases[idx].reinit()
+
+
+class Efficient_PSchedule(PSchedule):
+
+    def opt_by_gradient(self, env, external_loss):
+        """Optimize by the gradient for all base-learners.
+
+        Args:
+            env (Environment): Environment at current round.
+
+        Returns:
+            tuple: tuple contains:
+                loss (float): the origin loss of all alive base-learners. \n
+                surrogate_loss (float): the surrogate loss of all alive base-learners.
+        """
+        loss = np.zeros(len(self.active_index))
+        surrogate_loss = np.zeros_like(loss)
+        for i, idx in enumerate(self.active_index):
+            _, loss[i], surrogate_loss[i] = self.bases[idx].opt_by_gradient(
+                env)
+        # use external loss (e.g. the loss of meta-algorithm) as instance_loss
+        instance_loss = external_loss
+        reinit_instance = self.cover.set_instance_loss(instance_loss)
+        # no _instance
+        #if reinit_instance:
+        #    self._instance.reinit()
+        return loss, surrogate_loss
