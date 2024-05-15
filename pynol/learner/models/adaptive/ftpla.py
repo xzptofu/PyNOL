@@ -4,13 +4,13 @@ import numpy as np
 from pynol.environment.domain import Domain
 from pynol.learner.base import FTPL
 from pynol.learner.meta import AdaNormalHedge
-from pynol.learner.models.model import Model
+from pynol.learner.models.model import Randomized_Model
 from pynol.learner.schedule.cover import GC
 from pynol.learner.schedule.schedule import Schedule
 from pynol.learner.schedule.ssp import DiscreteSSP
 
 
-class FTPLA(Model):
+class FTPLA(Randomized_Model):
     """Implementation of Follow the Perturbed Leader with Adaptive Regret.
 
     ``FTPLA`` is an online algorithm designed for optimizing dynamic regret for
@@ -53,4 +53,4 @@ class FTPLA(Model):
         cover = GC(N, alive_time_threshold)
         meta = AdaNormalHedge(N=N)
         schedule = Schedule(ssp, cover)
-        super().__init__(schedule, meta)
+        super().__init__(schedule, meta) 

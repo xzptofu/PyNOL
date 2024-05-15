@@ -4,12 +4,12 @@ import numpy as np
 from pynol.environment.domain import Domain, Simplex
 from pynol.learner.base import FTPL
 from pynol.learner.meta import Hedge
-from pynol.learner.models.model import Model
+from pynol.learner.models.model import Randomized_Model
 from pynol.learner.schedule.schedule import Schedule
 from pynol.learner.schedule.ssp import DiscreteSSP
-from pynol.learner.schedule.cover import DGC
+from pynol.learner.schedule.cover import DGC, FullCover
 
-class FTPLD(Model):
+class FTPLD(Randomized_Model):
     """Implementation of Follow the Perturbed Leader with Dynamic Regret.
 
     ``FTPLD`` is an online algorithm designed for optimizing dynamic regret for
@@ -38,8 +38,6 @@ class FTPLD(Model):
                  T: int,
                  G: float,
                  alive_time_threshold: Optional[int] = None,
-                 min_step_size: Optional[float] = None,
-                 max_step_size: Optional[float] = None,
                  prior: Optional[Union[list, np.ndarray]] = None,
                  seed: Optional[int] = None):
         D = 2 * domain.R
@@ -55,7 +53,7 @@ class FTPLD(Model):
             seed=seed)
         list.reverse(ssp.bases) # Reverse the bases list such that the 'lmbd' is in descending order.
         cover = DGC(N, alive_time_threshold)
-        lr = np.array([1 / (domain.dimension * G * D * (T + 1)**0.5) for t in range(T)])
+        lr = np.array([(8* 5 * np.log(N))**0.5 / (domain.dimension * G * D * (T + 1)**0.5) for t in range(T)])
         meta = Hedge(prob=Simplex(len(ssp)).init_x(prior='uniform'), lr=lr)
         schedule = Schedule(ssp, cover)
         super().__init__(schedule, meta)
