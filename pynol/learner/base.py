@@ -787,7 +787,7 @@ class FTPL(Base):
 
     Args:
         domain (Domain): Feasible set for the base algorithm.
-        lmbd (float, numpy.ndarray): Parameter of exponential distribution,
+        step_size (float, numpy.ndarray): Parameter of exponential distribution,
             which is used to generate the random perturbation :math:`\sigma_t`
             at each round. Valid types include ``float`` and ``numpy.ndarray``. 
             If the type of the Lambda is `float`, the algorithm will use the 
@@ -804,29 +804,62 @@ class FTPL(Base):
 
     def __init__(self,
                  domain: Domain,
-                 lmbd: float,
+                 step_size: float,
                  prior: Optional[Union[list, np.ndarray]] = None,
                  seed: Optional[int] = None):
         super().__init__(domain, None, prior, seed)
-        self.lmbd = lmbd 
+        self.lmbd = step_size 
+        self.step_size = self.lmbd # for reinit
         self.history_func = lambda x : 0
         self.history_func_list = [lambda x : 0] 
+        self.history_grad_func_list = [lambda x : 0] 
 
+
+    
     def opt_by_gradient(self, env: Environment):
+        from autograd import grad as grad_solver
         x = self.x
         loss, surrogate_loss = env.get_loss(x)
         func = env.get_func()
+        grad_func = grad_solver(func)
         self.history_func_list.append(func)
+        self.history_grad_func_list.append(grad_func)
         def new_history_func(x):
             func_val = 0
             for i in range(len(self.history_func_list)):
                 func_val += self.history_func_list[i](x)
             return func_val
+        def history_grad_func(x):
+            func_val = np.zeros_like(x)
+            for i in range(len(self.history_grad_func_list)):
+                func_val += self.history_grad_func_list[i](x)
+            return func_val / len(self.history_grad_func_list)
         # generate random perturbation
         sigma = np.random.exponential(scale=self.lmbd, size=(self.domain.dimension))
-        def obj(x): 
-            return new_history_func(x) - np.dot(sigma, x)
+        sigma = sigma * ((-1) ** np.random.randint(2))
+        def obj(x): # objective function to be minimized at each round
+            return new_history_func(x) + np.dot(sigma, x)
         
+        # follow the perturbed leader by running multiple steps of stochastic gradient descent with momemtum
+        N = 20
+        eta = 0.01
+        alpha = 0.9
+        momt = np.zeros_like(x)
+        for step in range(N):
+            scale = 5
+            noise = (np.random.random(x.shape) - 0.5 ) * scale
+            grad = history_grad_func(x) + sigma + noise
+            momt = momt * alpha + grad * eta
+            x = x - momt
+            x = self.domain.project(x)
+        if obj(x) < obj(self.x): # if the new decision is better than the previous one
+            self.x = x
+            #print(x)
+            #print(self.lmbd)
+            #print(sigma)
+            #print('\n')
+
+        '''
         # follow the perturbed leader by solving an offline optimization problem
         if type(self.domain) == Ball:
             distance_func = lambda x: np.dot(x - self.domain.center, x - self.domain.center)#np.linalg.norm(x - self.domain.center)
@@ -838,4 +871,6 @@ class FTPL(Base):
             self.x = res.x
         else:
             print('optimize fail')
+
+        '''
         return x, loss, surrogate_loss
