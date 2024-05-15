@@ -106,7 +106,7 @@ class Model:
         """
         self.env = env
         variables = vars(self)
-        self.x_bases = self.schedule.x_active_bases
+        self.x_bases = self.schedule.x_active_bases    
         self.x = np.dot(self.meta.prob, self.x_bases)
 
         if env.full_info:
@@ -220,3 +220,74 @@ class Efficient_Model(Model):
         self.t += 1
         return self.x, loss, surrogate_loss
     
+
+class Randomized_Model(Model):
+    """Combines base learners by randomized sampling.
+
+    Args:
+        schedule (Schedule): Schedule method, refer to
+            ``pynol.schedule.schedule``.
+        meta (Meta): Meta algorithm, refer to ``pynol.meta``.
+        surrogate_base (SurrogateBase): Surrogate loss class for base-learners,
+            refer to ``pynol.specification.surrogate_base``.
+        optimism_base (optimismBase): Optimism class for base-learners,
+            refer to ``pynol.specification.optimism_base``.
+        surrogate_meta (SurrogateMeta): Surrogate loss class for meta-algorithm,
+            refer to ``pynol.specification.surrogate_meta``.
+        optimism_base (OptimismBase): Optimism class for meta-algorithm,
+            refer to ``pynol.specification.optimism_meta``.
+        perturbation (Perturbation): Perturbation class used in bandit setting.
+    """
+
+    def opt_by_gradient(self, env: Environment):
+        """Optimize by the true gradient.
+
+        Args:
+            env (Environment): Environment at the current round.
+
+        Returns:
+            tuple: tuple contains:
+                x (numpy.ndarray): the decision at the current round. \n
+                loss (float): the origin loss at the current round. \n
+                surrogate_loss (float): the surrogate loss at the current round.
+        """
+        self.env = env
+        variables = vars(self)
+        self.x_bases = self.schedule.x_active_bases
+        prob = self.meta.prob
+        submitted_index = np.random.choice(len(prob), p=prob)
+        self.x = self.x_bases[submitted_index]
+
+        if env.full_info:
+            loss, surrogate_loss = env.get_loss(self.x)
+            self.grad = env.get_grad(self.x)
+        else:
+            self.perturbation.perturb_x(self.x)
+            loss, surrogate_loss = self.perturbation.compute_loss(env)
+            self.grad = self.perturbation.construct_grad()
+
+        # update bases
+        base_env = Environment(func=env.func, grad_func=env.grad_func)
+        if self.surrogate_base is not None:
+            base_env.surrogate_func, base_env.surrogate_grad = self.surrogate_base.compute_surrogate_base(
+                variables)
+
+        self.loss_bases, self.surrogate_loss_bases = self.schedule.opt_by_gradient(
+            base_env)
+        
+        # compute the true loss of meta # 
+        meta_loss = np.dot(self.meta.prob, self.loss_bases)
+
+        # compute surrogate loss of meta #
+        if self.surrogate_meta is not None:
+            self.loss_bases = self.surrogate_meta.compute_surrogate_meta(
+                variables)
+
+        # update meta
+        self.meta.opt_by_gradient(self.loss_bases, meta_loss)
+
+        # compute internal optimism of bases
+        self.compute_internal_optimism(variables)
+
+        self.t += 1
+        return self.x, loss, surrogate_loss
